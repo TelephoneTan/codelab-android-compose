@@ -34,7 +34,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Divider
@@ -43,11 +43,13 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SnapshotMutationPolicy
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.structuralEqualityPolicy
 import androidx.compose.samples.crane.R
 import androidx.compose.samples.crane.data.ExploreModel
 import androidx.compose.samples.crane.home.OnExploreItemClicked
@@ -69,7 +71,16 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicInteger
 
+val b = AtomicInteger().apply {
+    Launch(false) {
+        while (true) {
+            incrementAndGet()
+            delay(100)
+        }
+    }
+}
 
 @Composable
 fun ExploreSection(
@@ -97,9 +108,20 @@ fun ExploreSection(
                         listState.firstVisibleItemIndex > 0
                     }
                 }
-//                if (showButton) {
-                if (listState.firstVisibleItemIndex > 0) {
-                    Log.e("我被", "重组了")
+                // 标注了 @Stable 的类型：equals 比较 -> 重组 / 不重组
+                // 未标注 @Stable 的类型：
+                // 　　如果能被推断为 Stable 类型：equals 比较 -> 重组 / 不重组
+                // 　　如果不能被推断为 Stable 类型：重组
+                //
+                // Compose skips the recomposition of a composable if all the inputs are stable and
+                // haven't changed. The comparison uses the equals method.
+                //
+                // Recomposition is typically triggered by a change to a State<T> object. Compose
+                // tracks these and runs all composables in the Composition that read that
+                // particular State<T>, and any composables that they call that cannot be skipped.
+                if (showButton) {
+//                if (listState.firstVisibleItemIndex > 0) {
+                    Log.e("我被", "重组了${b.get()}")
                     val coroutineScope = rememberCoroutineScope()
                     if (true) {
                         MyButton(
@@ -195,15 +217,33 @@ private fun ExploreList(
             }
         }
     }
+    val fetchResultFilteredByLen by remember {
+        derivedStateOf(object : SnapshotMutationPolicy<List<ExploreModel?>> {
+            override fun equivalent(a: List<ExploreModel?>, b: List<ExploreModel?>): Boolean {
+                return a.size == b.size
+            }
+        }) {
+            fetchResult
+        }
+    }
+    val columnTimes = remember {
+        AtomicInteger()
+    }
     LazyColumn(
         modifier = modifier,
         contentPadding = WindowInsets.navigationBars.asPaddingValues(),
         state = listState
     ) {
         Log.e("列表", "哈哈哈")
-        items(fetchResult) { it ->
+        itemsIndexed(fetchResultFilteredByLen) { index, item ->
+            val itemN by remember {
+                derivedStateOf(structuralEqualityPolicy()) {
+                    fetchResult[index]
+                }
+            }
             Column(Modifier.fillParentMaxWidth()) {
-                it?.let {
+                Log.e("列", "列" + columnTimes.incrementAndGet())
+                itemN?.let {
                     ExploreItem(
                         modifier = Modifier.fillParentMaxWidth(),
                         item = it,
