@@ -17,13 +17,69 @@
 package androidx.compose.samples.crane
 
 import android.app.Application
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.samples.crane.base.Launch
 import androidx.compose.samples.crane.util.UnsplashSizingInterceptor
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flow
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.reflect.KProperty
 
 @HiltAndroidApp
 class CraneApplication : Application(), ImageLoaderFactory {
+    class dataCenterClass {
+        var ShowTip by mutableStateOf(false)
+
+        val Ready by mutableStateOf(false).also {
+            Launch(true) {
+                delay(5000)
+                ShowTip = true
+                delay(5000)
+                it.value = true
+            }
+        }
+
+        private fun currentTimeString(): String =
+            SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS", Locale.getDefault())
+                .format(Date(System.currentTimeMillis()))
+
+        val Clock by mutableStateOf(currentTimeString()).apply {
+            Launch(true) {
+                flow {
+                    while (true) {
+                        emit(currentTimeString())
+                        delay(1)
+                    }
+                }.collect { this@apply.value = it }
+            }
+        }
+    }
+
+    private val dataCenter = dataCenterClass()
+
+    companion object {
+        var App: CraneApplication by object {
+            private val f = AtomicReference<CraneApplication>()
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): CraneApplication {
+                return f.get()
+            }
+
+            operator fun setValue(thisRef: Any?, property: KProperty<*>, value: CraneApplication) {
+                f.set(value)
+            }
+        }
+            private set
+        val DataCenter
+            get() = App.dataCenter
+    }
 
     /**
      * Create the singleton [ImageLoader].
@@ -35,5 +91,10 @@ class CraneApplication : Application(), ImageLoaderFactory {
                 add(UnsplashSizingInterceptor)
             }
             .build()
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        App = this
     }
 }

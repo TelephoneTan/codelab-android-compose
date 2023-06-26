@@ -17,12 +17,13 @@
 package androidx.compose.samples.crane.home
 
 import androidx.compose.samples.crane.data.DestinationsRepository
-import androidx.compose.samples.crane.data.ExploreModel
 import androidx.compose.samples.crane.di.DefaultDispatcher
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -36,21 +37,21 @@ class MainViewModel @Inject constructor(
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
-    val hotels: List<ExploreModel> = destinationsRepository.hotels
-    val restaurants: List<ExploreModel> = destinationsRepository.restaurants
+    private val suggestedDestinations = MutableStateFlow(destinationsRepository.destinations)
+    val SuggestedDestinations = suggestedDestinations.asStateFlow()
+    val hotels = destinationsRepository.hotels
+    val restaurants = destinationsRepository.restaurants
 
     fun updatePeople(people: Int) {
         viewModelScope.launch {
             if (people > MAX_PEOPLE) {
-            // TODO Codelab: Uncomment
-            //  _suggestedDestinations.value = emptyList()
+                suggestedDestinations.value = emptyList()
             } else {
                 val newDestinations = withContext(defaultDispatcher) {
                     destinationsRepository.destinations
                         .shuffled(Random(people * (1..100).shuffled().first()))
                 }
-                // TODO Codelab: Uncomment
-                //  _suggestedDestinations.value = newDestinations
+                suggestedDestinations.value = newDestinations
             }
         }
     }
@@ -61,8 +62,7 @@ class MainViewModel @Inject constructor(
                 destinationsRepository.destinations
                     .filter { it.city.nameToDisplay.contains(newDestination) }
             }
-            // TODO Codelab: Uncomment
-            //  _suggestedDestinations.value = newDestinations
+            suggestedDestinations.value = newDestinations
         }
     }
 }

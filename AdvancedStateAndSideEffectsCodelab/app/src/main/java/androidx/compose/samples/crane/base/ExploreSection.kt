@@ -16,6 +16,7 @@
 
 package androidx.compose.samples.crane.base
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,10 +38,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Divider
+import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.samples.crane.R
 import androidx.compose.samples.crane.data.ExploreModel
 import androidx.compose.samples.crane.home.OnExploreItemClicked
@@ -56,6 +64,11 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest.Builder
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.launch
 
 
 @Composable
@@ -72,12 +85,81 @@ fun ExploreSection(
                 style = MaterialTheme.typography.caption.copy(color = crane_caption)
             )
             Spacer(Modifier.height(8.dp))
-            // TODO Codelab: derivedStateOf step
-            // TODO: Show "Scroll to top" button when the first item of the list is not visible
-            val listState = rememberLazyListState()
-            ExploreList(exploreList, onItemClicked, listState = listState)
+            Box(modifier = Modifier.weight(1f)) {
+                Log.e("我被", "外面重组了")
+                val listState = rememberLazyListState()
+                ExploreList(exploreList, onItemClicked, listState = listState)
+                // Show the button if the first visible item is past
+                // the first item. We use a remembered derived state to
+                // minimize unnecessary compositions
+                val showButton by remember {
+                    derivedStateOf {
+                        listState.firstVisibleItemIndex > 0
+                    }
+                }
+//                if (showButton) {
+                if (listState.firstVisibleItemIndex > 0) {
+                    Log.e("我被", "重组了")
+                    val coroutineScope = rememberCoroutineScope()
+                    if (true) {
+                        MyButton(
+                            coroutineScope = coroutineScope, modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .navigationBarsPadding()
+                                .padding(bottom = 8.dp), listState
+                        )
+                    } else {
+                        FloatingActionButton(
+                            backgroundColor = MaterialTheme.colors.primary,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .navigationBarsPadding()
+                                .padding(bottom = 8.dp),
+                            onClick = {
+                                coroutineScope.launch {
+                                    listState.scrollToItem(0)
+                                }
+                            }
+                        ) {
+                            Log.e("我被", "重组了!!")
+                            Box {
+                                Log.e("我被", "重组了@@@@")
+                                Text("Up!")
+                            }
+                            Box {
+                                Log.e("我被", "重组了~~~~")
+                                Text("Up!" + "${listState.firstVisibleItemIndex > 0}")
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun MyButton(coroutineScope: CoroutineScope, modifier: Modifier, listState: LazyListState) {
+    FloatingActionButton(
+        backgroundColor = MaterialTheme.colors.primary,
+        modifier = modifier,
+        onClick = {
+            coroutineScope.launch {
+                listState.scrollToItem(0)
+            }
+        }
+    ) {
+        Log.e("我被", "重组了!!")
+        Box {
+            Log.e("我被", "重组了~~~~")
+            MyText(listState = listState)
+        }
+    }
+}
+
+@Composable
+private fun MyText(listState: LazyListState) {
+    Text("Up!" + "${listState.firstVisibleItemIndex > 0}")
 }
 
 @Composable
@@ -87,18 +169,47 @@ private fun ExploreList(
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState()
 ) {
+    val buffer = object : MutableList<ExploreModel?> by MutableList(
+        exploreList.size,
+        { null }) {
+        override fun equals(other: Any?): Boolean {
+            return false
+        }
+    }
+    val fetchResult by produceState(
+        buffer,
+        exploreList
+    ) {
+        Launch(false) {
+            channelFlow {
+                val flowScope = CoroutineScope(currentCoroutineContext())
+                exploreList.forEachIndexed { index, exploreModel ->
+                    flowScope.Launch(false) {
+                        delay((2000L..8000).random())
+                        send(Pair(index, exploreModel))
+                    }
+                }
+            }.collect { (index, model) ->
+                buffer[index] = model
+                value = buffer
+            }
+        }
+    }
     LazyColumn(
         modifier = modifier,
         contentPadding = WindowInsets.navigationBars.asPaddingValues(),
         state = listState
     ) {
-        items(exploreList) { exploreItem ->
+        Log.e("列表", "哈哈哈")
+        items(fetchResult) { it ->
             Column(Modifier.fillParentMaxWidth()) {
-                ExploreItem(
-                    modifier = Modifier.fillParentMaxWidth(),
-                    item = exploreItem,
-                    onItemClicked = onItemClicked
-                )
+                it?.let {
+                    ExploreItem(
+                        modifier = Modifier.fillParentMaxWidth(),
+                        item = it,
+                        onItemClicked = onItemClicked
+                    )
+                } ?: Text(text = "我不存在")
                 Divider(color = crane_divider_color)
             }
         }
