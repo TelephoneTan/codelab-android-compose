@@ -43,6 +43,7 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SnapshotMutationPolicy
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -98,6 +99,13 @@ fun ExploreSection(
             Spacer(Modifier.height(8.dp))
             Box(modifier = Modifier.weight(1f)) {
                 Log.e("我被", "外面重组了")
+                val l = remember {
+                    mutableListOf(1)
+                }
+                l.add(1)
+                LaunchedEffect(l) {
+                    Log.e("打印", "列表长度是${l.size}")
+                }
                 val listState = rememberLazyListState()
                 ExploreList(exploreList, onItemClicked, listState = listState)
                 // Show the button if the first visible item is past
